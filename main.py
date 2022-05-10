@@ -1,44 +1,53 @@
-import telebot, wikipedia, re
-# Создаем экземпляр бота
+import telebot
+import wikipedia
+import re
+import sqlite3
+
+
 bot = telebot.TeleBot('5398325648:AAF9u7Xw9bju31xOqzJeILFbrDrsDA_H0hk')
-# Устанавливаем русский язык в Wikipedia
 wikipedia.set_lang("ru")
-# Чистим текст статьи в Wikipedia и ограничиваем его тысячей символов
+
+
+def getdefinition(word):
+    con = sqlite3.connect('db.sqlite3')
+    cur = con.cursor()
+    result = cur.execute(f"""SELECT def FROM defs WHERE word = '{word}'""").fetchall()
+    if not result:
+        return None
+    else:
+        return result[0][0]
+
+
 def getwiki(s):
     try:
         ny = wikipedia.page(s)
-        # Получаем первую тысячу символов
-        wikitext=ny.content[:1000]
-        # Разделяем по точкам
-        wikimas=wikitext.split('.')
-        # Отбрасываем всЕ после последней точки
+        wikitext = ny.content[:1000]
+        wikimas = wikitext.split('.')
         wikimas = wikimas[:-1]
-        # Создаем пустую переменную для текста
         wikitext2 = ''
-        # Проходимся по строкам, где нет знаков «равно» (то есть все, кроме заголовков)
         for x in wikimas:
             if not('==' in x):
-                    # Если в строке осталось больше трех символов, добавляем ее к нашей переменной и возвращаем утерянные при разделении строк точки на место
-                if(len((x.strip()))>3):
-                   wikitext2=wikitext2+x+'.'
+                if(len((x.strip())) > 3):
+                    wikitext2=wikitext2+x+'.'
             else:
                 break
-        # Теперь при помощи регулярных выражений убираем разметку
-        wikitext2=re.sub('([^()])', '', wikitext2)
-        wikitext2=re.sub('([^()])', '', wikitext2)
-        wikitext2=re.sub('{[^{}]*}', '', wikitext2)
+        wikitext2=re.sub('\([^()]*\)', '', wikitext2)
+        wikitext2=re.sub('\([^()]*\)', '', wikitext2)
+        wikitext2=re.sub('\{[^\{\}]*\}', '', wikitext2)
         # Возвращаем текстовую строку
         return wikitext2
-    # Обрабатываем исключение, которое мог вернуть модуль wikipedia при запросе
     except Exception as e:
         return 'Нет информации об этом'
-# Функция, обрабатывающая команду /start
+
+
 @bot.message_handler(commands=["start"])
 def start(m, res=False):
     bot.send_message(m.chat.id, 'Отправьте мне любое слово, и я найду его значение')
-# Получение сообщений от юзера
 @bot.message_handler(content_types=["text"])
 def handle_text(message):
-    bot.send_message(message.chat.id, getwiki(message.text))
-# Запускаем бота
+    if getdefinition(message.text) != None:
+        send = getdefinition(message.text)
+    else:
+        send = getwiki(message.text)
+    bot.send_message(message.chat.id, send)
 bot.polling(none_stop=True, interval=0)
